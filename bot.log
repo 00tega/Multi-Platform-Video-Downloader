@@ -1,0 +1,17 @@
+2025-08-02 14:24:53,469 - __main__ - INFO - Bot commands set successfully
+2025-08-02 14:24:53,470 - __main__ - INFO - Bot initialization completed
+2025-08-02 14:24:53,470 - __main__ - INFO - Download worker started
+2025-08-02 14:24:53,895 - telegram.ext._application - INFO - Application started
+2025-08-02 14:31:18,492 - __main__ - INFO - Received URL from user 1595511671 (@auserlame): https://vt.tiktok.com/ZSSfymoNm/
+2025-08-02 14:31:18,493 - __main__ - INFO - Processing TikTok download for user 1595511671 (@auserlame): https://vt.tiktok.com/ZSSfymoNm/
+2025-08-02 14:31:29,214 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m  0.1\x1b[0m'
+2025-08-02 14:31:29,215 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m  0.4\x1b[0m'
+2025-08-02 14:31:29,217 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m  0.8\x1b[0m'
+2025-08-02 14:31:29,222 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m  1.8\x1b[0m'
+2025-08-02 14:31:29,246 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m  3.6\x1b[0m'
+2025-08-02 14:31:29,361 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m  7.4\x1b[0m'
+2025-08-02 14:31:29,502 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m 14.9\x1b[0m'
+2025-08-02 14:31:29,648 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m 30.0\x1b[0m'
+2025-08-02 14:31:29,840 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m 60.1\x1b[0m'
+2025-08-02 14:31:30,065 - __main__ - ERROR - Progress hook error: could not convert string to float: '\x1b[0;94m100.0\x1b[0m'
+2025-08-02 14:31:33,203 - __main__ - INFO - Successfully sent TikTok video to user 1595511671
