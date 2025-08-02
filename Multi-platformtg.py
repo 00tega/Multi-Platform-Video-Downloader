@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 import logging
 import json
 import shutil
-import re
+import requests
+from urllib.parse import urlparse, parse_qs
 
 # Load environment variables from .env file
 load_dotenv()
@@ -125,7 +126,7 @@ rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW)
 
 def get_platform_from_url(url):
     """Extract platform name from URL"""
-    if 'tiktok.com' in url:
+    if any(domain in url for domain in ['tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com']):
         return 'TikTok'
     elif 'instagram.com' in url:
         return 'Instagram'
@@ -134,6 +135,34 @@ def get_platform_from_url(url):
     elif 'facebook.com' in url or 'fb.watch' in url:
         return 'Facebook'
     return 'Unknown'
+
+def resolve_tiktok_redirect(url):
+    """Resolve TikTok redirect URLs to full URLs"""
+    try:
+        # Check if it's a redirect URL
+        if any(domain in url for domain in ['vm.tiktok.com', 'vt.tiktok.com', 'tiktok.com/t/']):
+            logger.info(f"Resolving TikTok redirect URL: {url}")
+            
+            # Follow redirects to get the actual URL
+            response = requests.head(url, allow_redirects=True, timeout=10, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
+            
+            final_url = response.url
+            logger.info(f"Resolved to: {final_url}")
+            
+            # Verify it's a proper TikTok URL
+            if 'tiktok.com' in final_url and '/video/' in final_url:
+                return final_url
+            else:
+                logger.warning(f"Resolved URL doesn't appear to be a valid TikTok video: {final_url}")
+                return url  # Return original if resolution fails
+        
+        return url  # Return original if not a redirect URL
+        
+    except Exception as e:
+        logger.error(f"Failed to resolve TikTok redirect URL {url}: {e}")
+        return url  # Return original URL if resolution fails
 
 def get_error_message(error_str):
     """Convert technical errors to user-friendly messages"""
@@ -735,9 +764,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Check supported platforms (YouTube removed)
+    # Check supported platforms (including TikTok redirect domains)
     supported_domains = [
-        'tiktok.com', 'instagram.com', 'twitter.com', 'x.com',
+        'tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',  # All TikTok domains
+        'instagram.com', 'twitter.com', 'x.com',
         'facebook.com', 'fb.watch'
     ]
     
@@ -745,7 +775,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "❌ Unsupported platform!\n\n"
             "🎬 *Supported platforms:*\n"
-            "• TikTok (tiktok.com)\n"
+            "• TikTok (tiktok.com, vm.tiktok.com, vt.tiktok.com)\n"
             "• Instagram (instagram.com)\n"
             "• Twitter/X (twitter.com, x.com)\n"
             "• Facebook (facebook.com, fb.watch)\n\n"
@@ -753,10 +783,17 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # Resolve TikTok redirect URLs
+    platform = get_platform_from_url(url)
+    if platform == 'TikTok':
+        resolved_url = resolve_tiktok_redirect(url)
+        if resolved_url != url:
+            logger.info(f"TikTok URL resolved from {url} to {resolved_url}")
+            url = resolved_url
+    
     # Add to download queue
     await download_queue.put((update, url))
     queue_position = download_queue.qsize()
-    platform = get_platform_from_url(url)
     
     remaining = rate_limiter.get_remaining_requests(user_id)
     
