@@ -168,9 +168,10 @@ def get_ydl_opts_for_platform(platform, use_cookies=True):
         'extract_flat': False,
         'no_warnings': False,
         'ignoreerrors': False,
-        'retries': 3,
-        'fragment_retries': 3,
+        'retries': 5,
+        'fragment_retries': 5,
         'skip_unavailable_fragments': True,
+        'socket_timeout': 30,
     }
     
     if platform == 'Instagram':
@@ -191,15 +192,25 @@ def get_ydl_opts_for_platform(platform, use_cookies=True):
     elif platform == 'TikTok':
         base_opts.update({
             'format': 'mp4/best[height<=1080]/best',
+            'extractor_args': {
+                'tiktok': {
+                    'webpage_url_basename': 'share',
+                    'api_hostname': 'api-h2.tiktokv.com'
+                }
+            },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'User-Agent': 'com.zhiliaoapp.musically/2022600030 (Linux; U; Android 7.1.2; es_ES; SM-G988N; Build/NRD90M;tt-ok/3.12.13.1)',
+                'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-site',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': 'https://www.tiktok.com/',
+                'Origin': 'https://www.tiktok.com'
             }
         })
         if use_cookies and os.path.exists(TIKTOK_COOKIES):
@@ -313,24 +324,32 @@ async def process_download_task(task):
             'last_percent': 0
         }
         
-        # Try multiple extraction methods for better private video support
-        download_attempts = [
-            (True, "🔒 Attempting download with enhanced access..."),
-            (False, "🔄 Retrying with alternative method...")
-        ]
+        # Special handling for TikTok with multiple extraction methods
+        if platform == 'TikTok':
+            download_attempts = [
+                ("mobile", "🔄 Trying mobile extraction..."),
+                ("web", "🔄 Trying web extraction..."),
+                ("api", "🔄 Trying API extraction..."),
+                ("fallback", "🔄 Final attempt...")
+            ]
+        else:
+            download_attempts = [
+                ("primary", "🔒 Attempting download with enhanced access..."),
+                ("fallback", "🔄 Retrying with alternative method...")
+            ]
         
         info = None
         file_path = None
         is_private = False
         
-        for attempt_num, (use_cookies, status_msg) in enumerate(download_attempts):
+        for attempt_num, (method, status_msg) in enumerate(download_attempts):
             try:
                 if attempt_num > 0:
                     await progress_msg.edit_text(status_msg)
                     await asyncio.sleep(2)  # Brief delay between attempts
                 
-                # Get platform-specific options
-                ydl_opts = get_ydl_opts_for_platform(platform, use_cookies)
+                # Get platform-specific options with method variation
+                ydl_opts = get_ydl_opts_for_platform_with_method(platform, method, attempt_num > 0)
                 ydl_opts['progress_hooks'] = [create_progress_hook(user_id, update, asyncio.get_event_loop())]
                 
                 # Extract video info first
@@ -378,11 +397,10 @@ async def process_download_task(task):
                         )
                         
                     except Exception as e:
-                        if attempt_num == 0:
-                            logger.warning(f"Failed to extract info for {url} (attempt {attempt_num + 1}): {e}")
-                            continue
-                        else:
+                        logger.warning(f"Failed to extract info for {url} (attempt {attempt_num + 1}, method {method}): {e}")
+                        if attempt_num == len(download_attempts) - 1:
                             raise e
+                        continue
                 
                 # Download the video
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -390,10 +408,11 @@ async def process_download_task(task):
                     file_path = ydl.prepare_filename(info)
                 
                 # If we reach here, download was successful
+                logger.info(f"Successfully downloaded {platform} video using method: {method}")
                 break
                 
             except Exception as e:
-                logger.error(f"Download attempt {attempt_num + 1} failed: {e}")
+                logger.error(f"Download attempt {attempt_num + 1} (method: {method}) failed: {e}")
                 if attempt_num == len(download_attempts) - 1:
                     # Last attempt failed
                     raise e
@@ -453,6 +472,44 @@ async def process_download_task(task):
         
         if user_id in user_progress:
             del user_progress[user_id]
+
+def get_ydl_opts_for_platform_with_method(platform, method, use_cookies=True):
+    """Get yt-dlp options with specific extraction methods for TikTok"""
+    base_opts = get_ydl_opts_for_platform(platform, use_cookies)
+    
+    if platform == 'TikTok':
+        if method == "mobile":
+            # Mobile app extraction
+            base_opts['http_headers']['User-Agent'] = 'com.zhiliaoapp.musically/2022600030 (Linux; U; Android 7.1.2; es_ES; SM-G988N; Build/NRD90M;tt-ok/3.12.13.1)'
+            base_opts['extractor_args'] = {
+                'tiktok': {
+                    'api_hostname': 'api-h2.tiktokv.com'
+                }
+            }
+        elif method == "web":
+            # Web browser extraction
+            base_opts['http_headers']['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            base_opts['extractor_args'] = {
+                'tiktok': {
+                    'api_hostname': 'www.tiktok.com'
+                }
+            }
+        elif method == "api":
+            # Direct API extraction
+            base_opts['http_headers']['User-Agent'] = 'TikTok 26.2.0 rv:262018 (iPhone; iOS 14.4.2; en_US) Cronet'
+            base_opts['extractor_args'] = {
+                'tiktok': {
+                    'api_hostname': 'api2-25-h2.musical.ly'
+                }
+            }
+        elif method == "fallback":
+            # Fallback method with minimal headers
+            base_opts['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+            }
+            base_opts.pop('extractor_args', None)
+    
+    return base_opts
 
 # === Set up clickable bot commands ===
 async def set_commands(application):
