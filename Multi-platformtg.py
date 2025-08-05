@@ -132,6 +132,29 @@ def get_platform_from_url(url):
         return 'Facebook'
     return 'Unknown'
 
+# === TikTok Shortlink Resolver ===
+import aiohttp
+
+async def resolve_tiktok_shortlink(url):
+    """
+    Resolve TikTok shortlinks (e.g., vt.tiktok.com) to their final destination URL.
+    Returns the expanded URL if successful, otherwise returns the original URL.
+    """
+    if not (url.startswith("http://") or url.startswith("https://")):
+        url = "https://" + url
+    if "vt.tiktok.com" not in url:
+        return url
+    try:
+        timeout = aiohttp.ClientTimeout(total=7)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.head(url, allow_redirects=True) as resp:
+                final_url = str(resp.url)
+                if "tiktok.com" in final_url:
+                    return final_url
+    except Exception as e:
+        logger.warning(f"Failed to resolve TikTok shortlink: {e}")
+    return url
+
 def get_error_message(error_str):
     """Convert technical errors to user-friendly messages"""
     error_lower = str(error_str).lower()
@@ -678,9 +701,15 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or "unknown"
     url = update.message.text.strip()
-    
     logger.info(f"Received URL from user {user_id} (@{username}): {url}")
-    
+
+    # TikTok shortlink resolution
+    if "tiktok.com" in url:
+        orig_url = url
+        url = await resolve_tiktok_shortlink(url)
+        if url != orig_url:
+            logger.info(f"Resolved TikTok shortlink: {orig_url} -> {url}")
+
     # Check rate limiting
     allowed, reset_time = rate_limiter.is_allowed(user_id)
     if not allowed:
@@ -691,7 +720,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Use /status to check your limits."
         )
         return
-    
+
     # Check supported platforms (Instagram removed)
     supported_domains = [
         'tiktok.com', 'twitter.com', 'x.com',
@@ -707,14 +736,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Use /help for more information."
         )
         return
-    
+
     # Add to download queue
     await download_queue.put((update, url))
     queue_position = download_queue.qsize()
     platform = get_platform_from_url(url)
-    
+
     remaining = rate_limiter.get_remaining_requests(user_id)
-    
+
     await update.message.reply_text(
         f"✅ Added {platform} video to queue!\n"
         f"📍 Position: {queue_position}\n"
