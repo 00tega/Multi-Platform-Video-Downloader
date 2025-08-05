@@ -45,8 +45,7 @@ MAX_CONCURRENT_DOWNLOADS = 2
 MAX_FILE_SIZE = 100 * 1024 * 1024  # Increased to 100MB for better private video support
 MAX_VIDEO_DURATION = 900  # Increased to 15 minutes
 
-# Cookie file paths for private video access
-INSTAGRAM_COOKIES = os.getenv('INSTAGRAM_COOKIES_PATH', 'cookies/instagram.txt')
+# Cookie file path for private video access (TikTok only)
 TIKTOK_COOKIES = os.getenv('TIKTOK_COOKIES_PATH', 'cookies/tiktok.txt')
 
 # === Analytics Storage ===
@@ -124,11 +123,9 @@ class RateLimiter:
 rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW)
 
 def get_platform_from_url(url):
-    """Extract platform name from URL"""
+    """Extract platform name from URL (Instagram removed)"""
     if 'tiktok.com' in url:
         return 'TikTok'
-    elif 'instagram.com' in url:
-        return 'Instagram'
     elif any(domain in url for domain in ['twitter.com', 'x.com']):
         return 'Twitter/X'
     elif 'facebook.com' in url or 'fb.watch' in url:
@@ -161,7 +158,7 @@ def get_error_message(error_str):
         return f"❌ Download failed: {str(error_str)[:100]}..."
 
 def get_ydl_opts_for_platform(platform, use_cookies=True):
-    """Get yt-dlp options optimized for each platform"""
+    """Get yt-dlp options optimized for each platform (Instagram removed)"""
     base_opts = {
         'outtmpl': '%(id)s_%(uploader)s.%(ext)s',
         'noplaylist': True,
@@ -173,23 +170,7 @@ def get_ydl_opts_for_platform(platform, use_cookies=True):
         'skip_unavailable_fragments': True,
         'socket_timeout': 30,
     }
-    
-    if platform == 'Instagram':
-        base_opts.update({
-            'format': 'mp4/best[height<=1080]/best',
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            }
-        })
-        if use_cookies and os.path.exists(INSTAGRAM_COOKIES):
-            base_opts['cookiefile'] = INSTAGRAM_COOKIES
-            logger.info("Using Instagram cookies for enhanced access")
-            
-    elif platform == 'TikTok':
+    if platform == 'TikTok':
         base_opts.update({
             'format': 'mp4/best[height<=1080]/best',
             'extractor_args': {
@@ -216,7 +197,6 @@ def get_ydl_opts_for_platform(platform, use_cookies=True):
         if use_cookies and os.path.exists(TIKTOK_COOKIES):
             base_opts['cookiefile'] = TIKTOK_COOKIES
             logger.info("Using TikTok cookies for enhanced access")
-            
     elif platform == 'Twitter/X':
         base_opts.update({
             'format': 'mp4/best[height<=720]/best',
@@ -224,7 +204,6 @@ def get_ydl_opts_for_platform(platform, use_cookies=True):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             }
         })
-        
     elif platform == 'Facebook':
         base_opts.update({
             'format': 'mp4/best[height<=720]/best',
@@ -232,7 +211,6 @@ def get_ydl_opts_for_platform(platform, use_cookies=True):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             }
         })
-    
     return base_opts
 
 # === Progress Hook for yt-dlp ===
@@ -539,7 +517,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👋 Welcome {user_name}!\n\n"
         f"🎬 *Supported Platforms:*\n"
         f"• TikTok\n"
-        f"• Instagram\n"
         f"• Twitter/X\n"
         f"• Facebook\n\n"
         f"📊 *Rate Limits:*\n"
@@ -559,7 +536,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "3️⃣ Receive your video!\n\n"
         "🎬 *Supported Platforms:*\n"
         "• TikTok (tiktok.com)\n"
-        "• Instagram (instagram.com)\n"
         "• Twitter/X (twitter.com, x.com)\n"
         "• Facebook (facebook.com, fb.watch)\n\n"
         "📊 *Commands:*\n"
@@ -574,13 +550,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
 async def cookies_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    instagram_status = "✅ Available" if os.path.exists(INSTAGRAM_COOKIES) else "❌ Not configured"
     tiktok_status = "✅ Available" if os.path.exists(TIKTOK_COOKIES) else "❌ Not configured"
-    
     cookies_text = (
         f"🔒 *Private Video Access*\n\n"
-        f"This bot uses enhanced methods to download private videos:\n\n"
-        f"🎬 *Instagram:* {instagram_status}\n"
+        f"This bot uses enhanced methods to download private TikTok videos:\n\n"
         f"🎵 *TikTok:* {tiktok_status}\n\n"
         f"📈 *Success Rate:*\n"
         f"• Public videos: ~95%\n"
@@ -709,7 +682,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• Total unique users: {len(analytics['user_stats'])}\n"
             f"• Average downloads per user: {analytics['total_downloads'] / max(len(analytics['user_stats']), 1):.1f}\n\n"
             f"🔒 *Privacy Features:*\n"
-            f"• Instagram cookies: {'✅' if os.path.exists(INSTAGRAM_COOKIES) else '❌'}\n"
+            # Instagram cookies removed
             f"• TikTok cookies: {'✅' if os.path.exists(TIKTOK_COOKIES) else '❌'}\n"
             f"• Private video success rate: ~75%"
         )
@@ -735,18 +708,16 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Check supported platforms (YouTube removed)
+    # Check supported platforms (Instagram removed)
     supported_domains = [
-        'tiktok.com', 'instagram.com', 'twitter.com', 'x.com',
+        'tiktok.com', 'twitter.com', 'x.com',
         'facebook.com', 'fb.watch'
     ]
-    
     if not any(domain in url for domain in supported_domains):
         await update.message.reply_text(
             "❌ Unsupported platform!\n\n"
             "🎬 *Supported platforms:*\n"
             "• TikTok (tiktok.com)\n"
-            "• Instagram (instagram.com)\n"
             "• Twitter/X (twitter.com, x.com)\n"
             "• Facebook (facebook.com, fb.watch)\n\n"
             "Use /help for more information."
@@ -775,7 +746,7 @@ async def post_init(application):
     # Start the download worker
     asyncio.create_task(download_worker())
     logger.info("Bot initialization completed")
-    logger.info(f"Instagram cookies: {'✅' if os.path.exists(INSTAGRAM_COOKIES) else '❌'}")
+    # Instagram cookies removed
     logger.info(f"TikTok cookies: {'✅' if os.path.exists(TIKTOK_COOKIES) else '❌'}")
 
 # Create application with simple approach - no custom timeouts for now
