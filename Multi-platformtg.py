@@ -301,106 +301,150 @@ async def process_download_task(task):
             'message': progress_msg,
             'last_percent': 0
         }
-        
-        # Special handling for TikTok with multiple extraction methods
+
+        # Parallel TikTok extraction methods
+        async def try_method(method, status_msg):
+            try:
+                # Show status for each method (only for web/mobile/api/fallback)
+                await progress_msg.edit_text(status_msg)
+                await asyncio.sleep(0.2)  # Small delay for UI
+                ydl_opts = get_ydl_opts_for_platform_with_method(platform, method, True)
+                ydl_opts['progress_hooks'] = [create_progress_hook(user_id, update, asyncio.get_event_loop())]
+                # Extract info
+                with yt_dlp.YoutubeDL({**ydl_opts, 'quiet': True}) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    # Check if video appears to be private
+                    is_private = False
+                    if info and ('private' in str(info.get('description', '')).lower() or info.get('availability') == 'private'):
+                        is_private = True
+                        analytics['private_downloads'][platform] += 1
+                    # Check video duration
+                    duration = info.get('duration', 0)
+                    if duration and duration > MAX_VIDEO_DURATION:
+                        await progress_msg.edit_text(
+                            f"❌ Video too long ({duration//60}m {duration%60}s). "
+                            f"Maximum allowed: {MAX_VIDEO_DURATION//60} minutes."
+                        )
+                        return None
+                    # Check file size estimate
+                    filesize = info.get('filesize') or info.get('filesize_approx', 0)
+                    if filesize and filesize > MAX_FILE_SIZE:
+                        size_mb = filesize / (1024 * 1024)
+                        await progress_msg.edit_text(
+                            f"❌ Video too large ({size_mb:.1f}MB). "
+                            f"Maximum allowed: {MAX_FILE_SIZE//1024//1024}MB."
+                        )
+                        return None
+                    # Show video info
+                    title = info.get('title', 'Unknown')[:50]
+                    uploader = info.get('uploader', 'Unknown')
+                    duration_str = f"{duration//60}m {duration%60}s" if duration else "Unknown"
+                    privacy_indicator = "🔒 Private" if is_private else "🌐 Public"
+                    await progress_msg.edit_text(
+                        f"📹 *{title}*\n"
+                        f"👤 {uploader}\n"
+                        f"⏱️ {duration_str}\n"
+                        f"🔐 {privacy_indicator}\n"
+                        f"🎬 Starting download..."
+                    )
+                # Download the video
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    file_path = ydl.prepare_filename(info)
+                return (info, file_path, is_private)
+            except Exception as e:
+                logger.warning(f"Parallel TikTok extraction method {method} failed: {e}")
+                return None
+
         if platform == 'TikTok':
-            download_attempts = [
+            methods = [
                 ("mobile", "🔄 Trying mobile extraction..."),
                 ("web", "🔄 Trying web extraction..."),
                 ("api", "🔄 Trying API extraction..."),
                 ("fallback", "🔄 Final attempt...")
             ]
+            # Run all methods in parallel, use the first that succeeds
+            tasks = [asyncio.create_task(try_method(m, msg)) for m, msg in methods]
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            result = None
+            for task in done:
+                if task.exception() is None and task.result() is not None:
+                    result = task.result()
+                    break
+            # Cancel all other tasks
+            for task in pending:
+                task.cancel()
+            if result is None:
+                raise Exception("All TikTok extraction methods failed.")
+            info, file_path, is_private = result
         else:
+            # Non-TikTok: keep sequential fallback for now
             download_attempts = [
                 ("primary", "🔒 Attempting download with enhanced access..."),
                 ("fallback", "🔄 Retrying with alternative method...")
             ]
-        
-        info = None
-        file_path = None
-        is_private = False
-        
-        for attempt_num, (method, status_msg) in enumerate(download_attempts):
-            try:
-                if attempt_num > 0:
-                    await progress_msg.edit_text(status_msg)
-                    await asyncio.sleep(2)  # Brief delay between attempts
-                
-                # Get platform-specific options with method variation
-                ydl_opts = get_ydl_opts_for_platform_with_method(platform, method, attempt_num > 0)
-                ydl_opts['progress_hooks'] = [create_progress_hook(user_id, update, asyncio.get_event_loop())]
-                
-                # Extract video info first
-                with yt_dlp.YoutubeDL({**ydl_opts, 'quiet': True}) as ydl:
-                    try:
-                        info = ydl.extract_info(url, download=False)
-                        
-                        # Check if video appears to be private
-                        if info and ('private' in str(info.get('description', '')).lower() or 
-                                   info.get('availability') == 'private'):
-                            is_private = True
-                            analytics['private_downloads'][platform] += 1
-                        
-                        # Check video duration
-                        duration = info.get('duration', 0)
-                        if duration and duration > MAX_VIDEO_DURATION:
+            info = None
+            file_path = None
+            is_private = False
+            for attempt_num, (method, status_msg) in enumerate(download_attempts):
+                try:
+                    if attempt_num > 0:
+                        await progress_msg.edit_text(status_msg)
+                        await asyncio.sleep(2)
+                    ydl_opts = get_ydl_opts_for_platform_with_method(platform, method, attempt_num > 0)
+                    ydl_opts['progress_hooks'] = [create_progress_hook(user_id, update, asyncio.get_event_loop())]
+                    with yt_dlp.YoutubeDL({**ydl_opts, 'quiet': True}) as ydl:
+                        try:
+                            info = ydl.extract_info(url, download=False)
+                            if info and ('private' in str(info.get('description', '')).lower() or info.get('availability') == 'private'):
+                                is_private = True
+                                analytics['private_downloads'][platform] += 1
+                            duration = info.get('duration', 0)
+                            if duration and duration > MAX_VIDEO_DURATION:
+                                await progress_msg.edit_text(
+                                    f"❌ Video too long ({duration//60}m {duration%60}s). "
+                                    f"Maximum allowed: {MAX_VIDEO_DURATION//60} minutes."
+                                )
+                                return
+                            filesize = info.get('filesize') or info.get('filesize_approx', 0)
+                            if filesize and filesize > MAX_FILE_SIZE:
+                                size_mb = filesize / (1024 * 1024)
+                                await progress_msg.edit_text(
+                                    f"❌ Video too large ({size_mb:.1f}MB). "
+                                    f"Maximum allowed: {MAX_FILE_SIZE//1024//1024}MB."
+                                )
+                                return
+                            title = info.get('title', 'Unknown')[:50]
+                            uploader = info.get('uploader', 'Unknown')
+                            duration_str = f"{duration//60}m {duration%60}s" if duration else "Unknown"
+                            privacy_indicator = "🔒 Private" if is_private else "🌐 Public"
                             await progress_msg.edit_text(
-                                f"❌ Video too long ({duration//60}m {duration%60}s). "
-                                f"Maximum allowed: {MAX_VIDEO_DURATION//60} minutes."
+                                f"📹 *{title}*\n"
+                                f"👤 {uploader}\n"
+                                f"⏱️ {duration_str}\n"
+                                f"🔐 {privacy_indicator}\n"
+                                f"🎬 Starting download..."
                             )
-                            return
-                        
-                        # Check file size estimate
-                        filesize = info.get('filesize') or info.get('filesize_approx', 0)
-                        if filesize and filesize > MAX_FILE_SIZE:
-                            size_mb = filesize / (1024 * 1024)
-                            await progress_msg.edit_text(
-                                f"❌ Video too large ({size_mb:.1f}MB). "
-                                f"Maximum allowed: {MAX_FILE_SIZE//1024//1024}MB."
-                            )
-                            return
-                        
-                        # Show video info
-                        title = info.get('title', 'Unknown')[:50]
-                        uploader = info.get('uploader', 'Unknown')
-                        duration_str = f"{duration//60}m {duration%60}s" if duration else "Unknown"
-                        privacy_indicator = "🔒 Private" if is_private else "🌐 Public"
-                        
-                        await progress_msg.edit_text(
-                            f"📹 *{title}*\n"
-                            f"👤 {uploader}\n"
-                            f"⏱️ {duration_str}\n"
-                            f"🔐 {privacy_indicator}\n"
-                            f"🎬 Starting download..."
-                        )
-                        
-                    except Exception as e:
-                        logger.warning(f"Failed to extract info for {url} (attempt {attempt_num + 1}, method {method}): {e}")
-                        if attempt_num == len(download_attempts) - 1:
-                            raise e
-                        continue
-                
-                # Download the video
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    file_path = ydl.prepare_filename(info)
-                
-                # If we reach here, download was successful
-                logger.info(f"Successfully downloaded {platform} video using method: {method}")
-                break
-                
-            except Exception as e:
-                logger.error(f"Download attempt {attempt_num + 1} (method: {method}) failed: {e}")
-                if attempt_num == len(download_attempts) - 1:
-                    # Last attempt failed
-                    raise e
-                continue
-        
+                        except Exception as e:
+                            logger.warning(f"Failed to extract info for {url} (attempt {attempt_num + 1}, method {method}): {e}")
+                            if attempt_num == len(download_attempts) - 1:
+                                raise e
+                            continue
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        file_path = ydl.prepare_filename(info)
+                    logger.info(f"Successfully downloaded {platform} video using method: {method}")
+                    break
+                except Exception as e:
+                    logger.error(f"Download attempt {attempt_num + 1} (method: {method}) failed: {e}")
+                    if attempt_num == len(download_attempts) - 1:
+                        raise e
+                    continue
+
         # Send the video
         try:
             if file_path and os.path.exists(file_path):
                 file_size = os.path.getsize(file_path)
-                
                 with open(file_path, 'rb') as video_file:
                     privacy_tag = "🔒 Private" if is_private else "🌐 Public"
                     caption = (
@@ -409,45 +453,32 @@ async def process_download_task(task):
                         f"📁 {file_size/(1024*1024):.1f}MB\n"
                         f"🔐 {privacy_tag}"
                     )
-                    
                     await update.message.reply_video(
                         video=video_file,
                         caption=caption
                     )
-                
-                # Update analytics
                 analytics['total_downloads'] += 1
                 analytics['daily_downloads'][datetime.now().strftime('%Y-%m-%d')] += 1
                 analytics['platform_stats'][platform] += 1
                 analytics['user_stats'][user_id] += 1
                 save_analytics()
-                
                 logger.info(f"Successfully sent {platform} video to user {user_id} (Private: {is_private})")
-                
         except Exception as e:
             error_msg = get_error_message(str(e))
             await progress_msg.edit_text(f"⚠️ Failed to send video: {error_msg}")
             logger.error(f"Failed to send video to user {user_id}: {e}")
-            
         finally:
-            # Cleanup
             if file_path and os.path.exists(file_path):
                 os.remove(file_path)
                 logger.debug(f"Cleaned up file: {file_path}")
-            
             if user_id in user_progress:
                 del user_progress[user_id]
-                
     except Exception as e:
         error_msg = get_error_message(str(e))
         await user_progress.get(user_id, {}).get('message', update.message).reply_text(error_msg)
-        
-        # Update error analytics
         analytics['error_stats'][platform] += 1
         save_analytics()
-        
         logger.error(f"Download failed for user {user_id} ({platform}): {e}")
-        
         if user_id in user_progress:
             del user_progress[user_id]
 
