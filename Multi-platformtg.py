@@ -405,43 +405,33 @@ async def process_download_task(task):
                     # Last attempt failed
                     raise e
                 continue
-        # Send the media (video, photo, or audio)
+        # Send the video
         try:
             if file_path and os.path.exists(file_path):
                 file_size = os.path.getsize(file_path)
-                privacy_tag = "🔒 Private" if is_private else "🌐 Public"
-                caption = (
-                    f"✅ Downloaded from {platform}\n"
-                    f"👤 {info.get('uploader', 'Unknown')}\n"
-                    f"📁 {file_size/(1024*1024):.1f}MB\n"
-                    f"🔐 {privacy_tag}"
-                )
-                # Detect media type
-                ext = os.path.splitext(file_path)[1].lower()
-                media_type = info.get('ext', ext.replace('.', ''))
-                # Try to detect if it's an image
-                if media_type in ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif']:
-                    with open(file_path, 'rb') as photo_file:
-                        await update.message.reply_photo(photo=photo_file, caption=caption)
-                # Try to detect if it's audio
-                elif media_type in ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'opus', 'flac']:
-                    with open(file_path, 'rb') as audio_file:
-                        await update.message.reply_audio(audio=audio_file, caption=caption)
-                # Otherwise, treat as video
-                else:
-                    with open(file_path, 'rb') as video_file:
-                        await update.message.reply_video(video=video_file, caption=caption)
+                with open(file_path, 'rb') as video_file:
+                    privacy_tag = "🔒 Private" if is_private else "🌐 Public"
+                    caption = (
+                        f"✅ Downloaded from {platform}\n"
+                        f"👤 {info.get('uploader', 'Unknown')}\n"
+                        f"📁 {file_size/(1024*1024):.1f}MB\n"
+                        f"🔐 {privacy_tag}"
+                    )
+                    await update.message.reply_video(
+                        video=video_file,
+                        caption=caption
+                    )
                 # Update analytics
                 analytics['total_downloads'] += 1
                 analytics['daily_downloads'][datetime.now().strftime('%Y-%m-%d')] += 1
                 analytics['platform_stats'][platform] += 1
                 analytics['user_stats'][user_id] += 1
                 save_analytics()
-                logger.info(f"Successfully sent {platform} media to user {user_id} (Private: {is_private})")
+                logger.info(f"Successfully sent {platform} video to user {user_id} (Private: {is_private})")
         except Exception as e:
             error_msg = get_error_message(str(e))
-            await progress_msg.edit_text(f"⚠️ Failed to send media: {error_msg}")
-            logger.error(f"Failed to send media to user {user_id}: {e}")
+            await progress_msg.edit_text(f"⚠️ Failed to send video: {error_msg}")
+            logger.error(f"Failed to send video to user {user_id}: {e}")
         finally:
             # Cleanup
             if file_path and os.path.exists(file_path):
@@ -539,21 +529,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "📌 *How to use this bot:*\n\n"
-        "1️⃣ Send me a link from supported platforms\n"
+        "1️⃣ Send me a video link from supported platforms\n"
         "2️⃣ Wait for the download to complete\n"
-        "3️⃣ Receive your media!\n\n"
-        "🎬 *Supported Platforms & Media Types:*\n"
-        "• TikTok (tiktok.com): Video, Photo, Audio\n"
-        "• Twitter/X (twitter.com, x.com): Video, Photo\n"
-        "• Facebook (facebook.com, fb.watch): Video, Photo\n\n"
+        "3️⃣ Receive your video!\n\n"
+        "🎬 *Supported Platforms:*\n"
+        "• TikTok (tiktok.com)\n"
+        "• Twitter/X (twitter.com, x.com)\n"
+        "• Facebook (facebook.com, fb.watch)\n\n"
         "📊 *Commands:*\n"
         "• /status - Check your rate limit status\n"
         "• /queue - Check download queue status\n"
         "• /stats - View your download statistics\n\n"
         f"⚡ *Limits:* {RATE_LIMIT_REQUESTS} downloads per {RATE_LIMIT_WINDOW//60} minutes\n"
         f"📁 *Max file size:* {MAX_FILE_SIZE//1024//1024}MB\n"
-        f"⏱️ *Max duration (video/audio):* {MAX_VIDEO_DURATION//60} minutes\n\n"
-        "_Note: Both public and private media are supported. The bot will automatically detect and send videos, photos, or audio files as appropriate._"
+        f"⏱️ *Max duration:* {MAX_VIDEO_DURATION//60} minutes\n\n"
+        "_Note: Both public and private videos are supported._"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
