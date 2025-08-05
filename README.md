@@ -1,11 +1,12 @@
+
 # 🎬 Telegram Video Downloader Bot
 
-A powerful Telegram bot that downloads videos from popular social media platforms with enhanced private video support and advanced queue management.
+A powerful Telegram bot that downloads videos from TikTok, Twitter/X, and Facebook, with enhanced private video support, TikTok shortlink resolution, and advanced queue management.
 
 ## ✨ Features
 
-- 🌐 **Multi-Platform Support**: TikTok, Instagram, Twitter/X, Facebook
-- 🔒 **Private Video Downloads**: Enhanced extraction methods for private content
+- 🌐 **Multi-Platform Support**: TikTok, Twitter/X, Facebook
+- 🔒 **Private Video Downloads**: Enhanced extraction methods for TikTok, Twitter/X, Facebook
 - ⚡ **Queue Management**: Concurrent downloads with smart rate limiting
 - 📊 **Analytics**: Comprehensive download statistics and user tracking
 - 🛡️ **Rate Limiting**: Prevent abuse with configurable limits
@@ -43,7 +44,7 @@ A powerful Telegram bot that downloads videos from popular social media platform
    ```env
    TELEGRAM_BOT_TOKEN=your_bot_token_here
    ADMIN_IDS=your_user_id,another_admin_id
-   INSTAGRAM_COOKIES_PATH=cookies/instagram.txt
+   TIKTOK_COOKIES_PATH=cookies/tiktok.txt
    TIKTOK_COOKIES_PATH=cookies/tiktok.txt
    ```
 
@@ -57,6 +58,7 @@ A powerful Telegram bot that downloads videos from popular social media platform
 Create a `requirements.txt` file with:
 
 ```
+
 # Telegram Bot Framework - Use specific working version
 python-telegram-bot==20.3
 
@@ -66,8 +68,8 @@ yt-dlp>=2023.12.30
 # Environment Variables
 python-dotenv>=1.0.0
 
-# Enhanced Features Added
-# All features are built-in, no additional dependencies needed!
+# TikTok Shortlink Resolution
+aiohttp>=3.9.0
 
 # Optional: Enhanced Functionality
 # requests>=2.31.0        # For HTTP requests (if needed)
@@ -88,7 +90,8 @@ python-dotenv>=1.0.0
 |----------|-------------|----------|---------|
 | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token | ✅ Yes | - |
 | `ADMIN_IDS` | Comma-separated admin user IDs | ❌ No | - |
-| `INSTAGRAM_COOKIES_PATH` | Path to Instagram cookies file | ❌ No | `cookies/instagram.txt` |
+| `TIKTOK_COOKIES_PATH` | Path to TikTok cookies file | ❌ No | `cookies/tiktok.txt` |
+
 | `TIKTOK_COOKIES_PATH` | Path to TikTok cookies file | ❌ No | `cookies/tiktok.txt` |
 
 ### Rate Limiting Settings
@@ -103,31 +106,31 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 MAX_VIDEO_DURATION = 900     # 15 minutes
 ```
 
+
 ## 🔒 Private Video Support
 
-For better success with private videos, you can optionally provide cookie files:
+For better success with private TikTok videos, you can optionally provide a TikTok cookie file:
 
 1. **Create cookies directory**
    ```bash
    mkdir cookies
    ```
 
-2. **Export cookies** from your browser using extensions like:
+2. **Export TikTok cookies** from your browser using extensions like:
    - "Get cookies.txt" 
    - "Cookie Editor"
 
 3. **Save cookies** in Netscape format:
-   - `cookies/instagram.txt` - Instagram cookies
    - `cookies/tiktok.txt` - TikTok cookies
 
 ## 🎯 Supported Platforms
 
-| Platform | Public Videos | Private Videos | Notes |
-|----------|---------------|----------------|-------|
-| TikTok | ✅ | ✅ | Enhanced extraction methods |
-| Instagram | ✅ | ✅ | Stories, posts, reels |
-| Twitter/X | ✅ | ⚠️ | Limited private support |
-| Facebook | ✅ | ⚠️ | Public posts and fb.watch |
+
+| Platform   | Public Videos | Private Videos | Notes                        |
+|------------|--------------|---------------|------------------------------|
+| TikTok     | ✅           | ✅            | Enhanced extraction, shortlink support |
+| Twitter/X  | ✅           | ⚠️            | Limited private support       |
+| Facebook   | ✅           | ⚠️            | Public posts and fb.watch     |
 
 ## 📱 Commands
 
