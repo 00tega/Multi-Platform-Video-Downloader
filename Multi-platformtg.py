@@ -325,23 +325,14 @@ async def process_download_task(task):
             'last_percent': 0
         }
 
-        # Heuristic: prefer mobile extraction for TikTok (especially vt.tiktok.com shortlinks)
+        # Heuristic: try fallback (minimal headers) first for TikTok, then mobile, web, api
         if platform == 'TikTok':
-            # For vt.tiktok.com and www.tiktok.com, try mobile first, then web, then api, then fallback
-            if "vt.tiktok.com" in url or "www.tiktok.com" in url:
-                download_attempts = [
-                    ("mobile", "🔄 Trying mobile extraction..."),
-                    ("web", "🔄 Trying web extraction..."),
-                    ("api", "🔄 Trying API extraction..."),
-                    ("fallback", "🔄 Final attempt...")
-                ]
-            else:
-                download_attempts = [
-                    ("mobile", "🔄 Trying mobile extraction..."),
-                    ("web", "🔄 Trying web extraction..."),
-                    ("api", "🔄 Trying API extraction..."),
-                    ("fallback", "🔄 Final attempt...")
-                ]
+            download_attempts = [
+                ("fallback", "🔄 Trying fallback extraction (minimal headers)..."),
+                ("mobile", "🔄 Trying mobile extraction..."),
+                ("web", "🔄 Trying web extraction..."),
+                ("api", "🔄 Trying API extraction...")
+            ]
         else:
             download_attempts = [
                 ("primary", "🔒 Attempting download with enhanced access..."),
