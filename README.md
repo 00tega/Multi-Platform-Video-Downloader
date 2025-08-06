@@ -68,19 +68,20 @@ yt-dlp>=2023.12.30
 # Environment Variables
 python-dotenv>=1.0.0
 
-# TikTok Shortlink Resolution
-aiohttp>=3.9.0
+# Enhanced Features Added
+# All features are built-in, no additional dependencies needed!
+
 
 # Optional: Enhanced Functionality
-# requests>=2.31.0        # For HTTP requests (if needed)
-# aiofiles>=23.0.0        # For async file operations (if needed)
-# pillow>=10.0.0          # For image processing (if needed)
+# requests>=2.31.0        # For HTTP requests
+# aiofiles>=23.0.0        # For async file operations
+# pillow>=10.0.0          # For image processing
+aiohttp>=3.9.0            # For async TikTok shortlink resolution
 
-# Development Dependencies (uncomment if needed)
+# Development Dependencies
 # pytest>=7.0.0           # For testing
 # black>=23.0.0           # Code formatting
-# flake8>=6.0.0           # Code linting
-```
+# flake8>=6.0.0           # Code linting```
 
 ## ⚙️ Configuration
 
